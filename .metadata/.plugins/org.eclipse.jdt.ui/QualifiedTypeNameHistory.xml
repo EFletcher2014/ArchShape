@@ -1,2 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<qualifiedTypeNameHistroy/>
+<qualifiedTypeNameHistroy>
+<fullyQualifiedTypeName name="java.util.StringTokenizer"/>
+<fullyQualifiedTypeName name="java.lang.Integer"/>
+<fullyQualifiedTypeName name="org.locationtech.jts.geom.Coordinate"/>
+<fullyQualifiedTypeName name="java.text.DecimalFormat"/>
+<fullyQualifiedTypeName name="net.sf.geographiclib.Geodesic"/>
+<fullyQualifiedTypeName name="net.sf.geographiclib.GeodesicData"/>
+<fullyQualifiedTypeName name="net.sf.geographiclib.GeodesicLine"/>
+<fullyQualifiedTypeName name="net.sf.geographiclib.GeodesicMask"/>
+</qualifiedTypeNameHistroy>

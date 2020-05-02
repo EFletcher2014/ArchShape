@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.Serializable;
+import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.StringTokenizer;
 
 import org.geotools.data.DataUtilities;
 import org.geotools.data.DefaultTransaction;
@@ -28,15 +30,25 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.Point;
 
+import net.sf.geographiclib.Geodesic;
+import net.sf.geographiclib.GeodesicData;
+import net.sf.geographiclib.GeodesicLine;
+import net.sf.geographiclib.GeodesicMask;
+
 /**
- * This example reads data for point locations and associated attributes from a comma separated text
+ * This class reads a datum coordinate and relational location tags (following the format N1E1) from a comma separated values (CSV) file
+ * 	 and converts them into true coordinates based on their relationship to the datum coordinate.
+ * It writes these coordinates, location tags, and descriptions to a shapefile
  * (CSV) file and exports them as a new shapefile. It illustrates how to build a feature type.
- * <p>
- * Note: to keep things simple in the code below the input file should not have additional spaces or
- * tabs between fields.
  */
 public class CSV2Shape {
+	
+	private static org.locationtech.jts.geom.Coordinate siteDatum; //the datum point of the site, which all other points are defined in relation to
+	private static final double conversion = 111319.5; //the conversion of coordinate degrees to meters
 
+	/**
+	 * Open a GUI window to allow the user to input a csv files containing their datum coordinate
+	 */
     public static void main(String[] args) throws Exception {
 
         File file = JFileDataStoreChooser.showOpenFile("csv", null);
@@ -45,14 +57,13 @@ public class CSV2Shape {
         }
         
         /*
-         * We use the DataUtilities class to create a FeatureType that will describe the data in our
-         * shapefile.
-         * 
-         * See also the createFeatureType method below for another, more flexible approach.
+         * Use the DataUtilities class to create a FeatureType that will describe the data in the shapefile.
+         * In this case, the shapefile will include a coordinate, a description ("point type") and a location tag ("excCoord").
          */
         final SimpleFeatureType TYPE = DataUtilities.createType("Location",
                 "the_geom:Point:srid=4326," + // <- the geometry attribute: Point type
-        		"point type:String"
+        		"point type:String," +
+                "excCoord:String"
         );
         
         /*
@@ -60,6 +71,7 @@ public class CSV2Shape {
          * in the input csv data file
          */
         DefaultFeatureCollection collection = new DefaultFeatureCollection();
+        
         /*
          * GeometryFactory will be used to create the geometry attribute of each feature (a Point
          * object for the location)
@@ -69,6 +81,48 @@ public class CSV2Shape {
         SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(TYPE);
 
         BufferedReader reader = new BufferedReader(new FileReader(file));
+        
+        //Retrieve datum coordinate values
+        try {
+            /* First line of the data file is the header */
+            String line = reader.readLine();
+            System.out.println("Header: " + line);
+
+            //Loop through all lines
+            for (line = reader.readLine(); line != null; line = reader.readLine()) {
+                if (line.trim().length() > 0) { // skip blank lines
+                    String tokens[] = line.split("\\,");
+
+                    //Assumes table contains three columns: latitude, longitude, and label
+                    //TODO: make this more flexible
+                    double latitude = Double.parseDouble(tokens[0].replaceAll("\"", ""));
+                    double longitude = Double.parseDouble(tokens[1].replaceAll("\"", ""));
+                    String label = tokens[2].replaceAll("\"", "");
+                    
+                    /* Longitude (= x coord) first ! */
+                    siteDatum = new org.locationtech.jts.geom.Coordinate(longitude, latitude);
+                    org.locationtech.jts.geom.Point point = geometryFactory.createPoint(siteDatum);
+
+                    featureBuilder.add(point);
+                    featureBuilder.add(label);
+                    featureBuilder.add("N0E0"); //Assumes datum point is N0E0--TODO: allow user to input this
+                    SimpleFeature feature = featureBuilder.buildFeature(null);
+                    collection.add(feature);
+                }
+            }
+            
+        } finally {
+            reader.close();
+        }
+        
+        
+        //Now, open another GUI window to allow the user to input file containing relational location tags
+        file = JFileDataStoreChooser.showOpenFile("csv", null);
+        if (file == null) {
+            return;
+        }
+        
+        reader = new BufferedReader(new FileReader(file));
         try {
             /* First line of the data file is the header */
             String line = reader.readLine();
@@ -78,25 +132,27 @@ public class CSV2Shape {
                 if (line.trim().length() > 0) { // skip blank lines
                     String tokens[] = line.split("\\,");
 
-                    double latitude = Double.parseDouble(tokens[0].replaceAll("\"", ""));
-                    double longitude = Double.parseDouble(tokens[1].replaceAll("\"", ""));
-                    String label = tokens[2];
+                    //Assumes that table contains two columns: a relational location tag and a description of the object found there
+                    //TODO: Make this more flexible
+                    String excCoord = tokens[1];
+                    String excObj = tokens[2];
                     
-                    /* Longitude (= x coord) first ! */
-                    org.locationtech.jts.geom.Point point = geometryFactory.createPoint(new org.locationtech.jts.geom.Coordinate(longitude, latitude));
 
-                    featureBuilder.add(point);
-                    featureBuilder.add(label);
+                    //Add coordinate, location tag, and description to the shapefile
+                    featureBuilder.add(geometryFactory.createPoint(getCoordinateFromDatum(excCoord)));
+                    featureBuilder.add(excObj);
+                    featureBuilder.add(excCoord);
                     SimpleFeature feature = featureBuilder.buildFeature(null);
-                    collection.add(feature);
+                    collection.add(feature); //datum and relational points will all be written to one shapefile
                 }
             }
+            
         } finally {
             reader.close();
         }
         
         /*
-         * Get an output file name and create the new shapefile
+         * Create the new shapefile
          */
         File newFile = getNewShapeFile(file);
 
@@ -175,5 +231,29 @@ public class CSV2Shape {
         }
 
         return newFile;
+    }
+    
+    
+    /**
+     * Converts a relational location tag into a true coordinate using a datum coordinate, bearing, and distance
+     * @param datum
+     * @return a coordinate representing the location referred to by the relational location tag
+     */
+    private static org.locationtech.jts.geom.Coordinate getCoordinateFromDatum(String datum) {
+    	StringTokenizer parser = new StringTokenizer(datum, "NEWS");
+    	//parse location tags into two tokens, each indicating a longitudinal or latitudinal distance
+    	double NSCoor = Double.parseDouble(parser.nextToken());
+    	double EWCoor = Double.parseDouble(parser.nextToken());
+    	
+    	//have to account for direction
+    	NSCoor = datum.contains("S") || datum.contains("s") ? 0 - NSCoor : NSCoor;
+    	EWCoor = datum.contains("W") || datum.contains("w") ? 0 - EWCoor : EWCoor;
+    	
+    	//increment or decrement the site datum accordingly to calculate the coordinate of this point
+    	double endLat =  siteDatum.y + (NSCoor/conversion);
+    	double endLong = siteDatum.x + (EWCoor/conversion);
+   
+    	//return the coordinate
+    	return new org.locationtech.jts.geom.Coordinate(endLong, endLat);   	
     }
 }
