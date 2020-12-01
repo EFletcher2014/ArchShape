@@ -11,6 +11,7 @@ ArchShape can be used as a standalone tool to create shapefiles from coordinates
 
 # Using ArchShape to Digitize Archaeological Maps
 ArchShape is intended to be used with [ArchLocateR](https://github.com/EFletcher2014/ArchLocateR) as part of a pipeline to digitize archaeological maps. This pipeline can take `.pdf` scans of archaeological field notes, make them machine-readable, identify location information in them, and turn this information into a map for use in GIS. I will outline this process here.
+![Digitizing Archaeological Maps Infographic](https://www.canva.com/design/DAEPGBsRBDc/view)
 
 ## Step 1: Digitize Written Records
 This mapping tool works by identifying location information in written texts. Therefore, it must start with machine-readable archaeological texts (specifically field notes). If your records are already machine-readable (for instance, if they were transcribed), you can skip this step. If transcription is not feasible for your dataset, you can use an OCR model such as Tesseract to have a computer perform this transcription. If your records are typed or typewritten, basic Tesseract may be very successful. However, it is likely that you may have to train Tesseract to be more successful.
