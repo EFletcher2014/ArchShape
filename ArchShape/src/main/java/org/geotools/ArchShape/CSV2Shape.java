@@ -241,6 +241,7 @@ public class CSV2Shape {
      */
     private static org.locationtech.jts.geom.Coordinate getCoordinateFromDatum(String datum) {
     	StringTokenizer parser = new StringTokenizer(datum, "NEWS");
+    	//TODO: Handle ranges    	
     	//parse location tags into two tokens, each indicating a longitudinal or latitudinal distance
     	double NSCoor = Double.parseDouble(parser.nextToken());
     	double EWCoor = Double.parseDouble(parser.nextToken());
